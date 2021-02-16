@@ -34,7 +34,7 @@ func (g *GORMLogger) LogMode(level logger.LogLevel) logger.Interface {
 		lvl = "silent"
 	}
 	return &GORMLogger{
-		l: g.l.WithField("log.mode", lvl),
+		l: g.l.WithField("level", lvl),
 	}
 }
 
