@@ -10,8 +10,8 @@ The following example is the best practice for using klog with the gin framework
         "fmt"
         "net/http"
 
-        "github.com/gin-gonic/gin"
         log "github.com/kunstack/klog"
+        "github.com/labstack/echo/v4"
     )
 
     // Do some operations...
@@ -21,27 +21,33 @@ The following example is the best practice for using klog with the gin framework
         l.Warningln("this is someService...")
     }
 
+    // curl -H "X-Request-ID: 0F0623A4-0980-47FB-8257-664FA5761E6C" http://localhost:8080/ping
+
     func main() {
-        router := gin.Default()
+        app := echo.New()
+        app.Use(
+            func(next echo.HandlerFunc) echo.HandlerFunc {
+                return func(ctx echo.Context) error {
+                    newCtx := log.WithContext(
+                        ctx.Request().Context(),
+                        log.StrField("request-id", ctx.Request().Header.Get("x-request-id")),
+                    )
+                    ctx.SetRequest(ctx.Request().WithContext(newCtx))
+                    return next(ctx)
+                }
+            },
+        )
 
-        router.Use(func(ctx *gin.Context) {
-            newCtx := log.WithContext(
-                ctx.Request.Context(),
-                log.StrField("request-id", ctx.Request.Header.Get("x-request-id")),
-            )
-            ctx.Request = ctx.Request.WithContext(newCtx)
-        })
-
-        router.GET("/ping", func(ctx *gin.Context) {
-            l := log.FromContext(ctx.Request.Context())
+        app.GET("/ping", func(ctx echo.Context) error {
+            l := log.FromContext(ctx.Request().Context())
             defer l.Flush()
             l.Infoln("this is test message")
-            someService(ctx.Request.Context())
-            ctx.String(http.StatusOK, fmt.Sprintf("reuest-id is %s", l.Fields().Get("request-id")))
+            someService(ctx.Request().Context())
+            return ctx.String(http.StatusOK, fmt.Sprintf("reuest-id is %s", l.Fields().Get("request-id")))
         })
-
-        router.Run(":8080")
+        app.Start(":8080")
     }
+
 
 
 
