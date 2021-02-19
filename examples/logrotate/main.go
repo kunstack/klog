@@ -43,6 +43,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	// defer file.Close()
 	log.SetOutput(file) //Initialize the log file
 
 	stopChan := setupSignalHandler()

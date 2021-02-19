@@ -36,9 +36,9 @@ func TestOutput(t *testing.T) {
 	defer log.Flush()
 	var b bytes.Buffer
 	l := log.New(
-		os.Stderr, log.WithLevel(log.TraceLevel),
-		log.WithTextEncoder(),
-		log.WithFullCaller(),
+		os.Stderr, log.AddLevel(log.TraceLevel),
+		log.AddTextEncoder(),
+		log.AddFullCaller(),
 	)
 	defer l.Flush()
 	l.SetOutput(&b)
@@ -53,7 +53,7 @@ func TestOutput(t *testing.T) {
 
 func TestWithCaller(t *testing.T) {
 	var buf bytes.Buffer
-	l := log.New(&buf, log.WithFullCaller())
+	l := log.New(&buf, log.AddFullCaller())
 	l.Println("test")
 	l.Flush()
 	ok, err := regexp.MatchString(CallerRegex, buf.String())
@@ -116,7 +116,7 @@ func TestJSONEncoder(t *testing.T) {
 	var buf bytes.Buffer
 	var testString = "test"
 	var testMap = map[string]string{}
-	l := log.New(&buf, log.WithJSONEncoder())
+	l := log.New(&buf, log.AddJSONEncoder())
 	l.SetEncoder(log.DefaultJSONEncoder)
 	l.Println(testString)
 	l.Flush()
@@ -144,10 +144,10 @@ func BenchmarkPrintln(b *testing.B) {
 	}
 }
 
-func BenchmarkPrintWithTime(b *testing.B) {
+func BenchmarkPrintAddTime(b *testing.B) {
 	const testString = "test"
 	var buf bytes.Buffer
-	l := log.New(&buf, log.WithTimeRFC3339())
+	l := log.New(&buf, log.AddTimeRFC3339())
 	defer l.Flush()
 	for i := 0; i < b.N; i++ {
 		buf.Reset()
@@ -158,7 +158,7 @@ func BenchmarkPrintWithTime(b *testing.B) {
 func BenchmarkPrintWithCaller(b *testing.B) {
 	const testString = "test"
 	var buf bytes.Buffer
-	l := log.New(&buf, log.WithShortCaller())
+	l := log.New(&buf, log.AddShortCaller())
 	defer l.Flush()
 	for i := 0; i < b.N; i++ {
 		buf.Reset()

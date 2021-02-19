@@ -69,12 +69,6 @@ type (
 	Option func(l *config)
 )
 
-// FlushWriter Writer with buffer, can be flushed
-type FlushWriter interface {
-	Flush() error
-	io.Writer
-}
-
 // Interface logger with field
 type Interface interface {
 	WithField(key string, value string) Interface
@@ -91,6 +85,16 @@ type Interface interface {
 	SetEncoder(Encoder)
 	SetTimeEncoder(TimeEncoder)
 	SetCallerEncoder(CallerEncoder)
+	// Inefficient method Not recommended
+	WithOutput(out io.Writer) Interface
+	//Inefficient method Not recommended
+	WithLevel(level Level) Interface
+	// Inefficient method Not recommended
+	WithEncoder(Encoder) Interface
+	// Inefficient method Not recommended
+	WithTimeEncoder(TimeEncoder) Interface
+	// Inefficient method Not recommended
+	WithCallerEncoder(CallerEncoder) Interface
 	Output(level Level, calldepth int, fileds Fields, s string) error
 	WithContext(ctx context.Context, opts ...func(Fields)) context.Context
 	Fields() Fields
@@ -122,6 +126,16 @@ type Interface interface {
 	Panic(v ...interface{})
 	Panicf(format string, v ...interface{})
 	Panicln(v ...interface{})
+}
+type mutexWriter struct {
+	writer io.Writer
+	locker sync.Mutex
+}
+
+func (w *mutexWriter) Write(p []byte) (n int, err error) {
+	w.locker.Lock()
+	defer w.locker.Unlock()
+	return w.writer.Write(p)
 }
 
 // TimeRFC3339 RFC3339 time encoder
@@ -209,11 +223,11 @@ type config struct {
 // We are willi3ng to accept any method that can increase the speed
 // If consuming memory can increase the speed, then just do it
 type Logger struct {
-	locker    sync.Mutex
-	writer    FlushWriter
-	level     Level
-	stopFlush chan struct{}
-	config    *config
+	*config
+	locker      sync.Mutex
+	stopFlush   chan struct{}
+	writer      *mutexWriter
+	bufioWriter *bufio.Writer
 }
 
 // FiledLogger logger but with field
@@ -314,6 +328,32 @@ func (l *FiledLogger) SetTimeEncoder(encoder TimeEncoder) {
 // SetCallerEncoder set caller encoder for logger
 func (l *FiledLogger) SetCallerEncoder(encoder CallerEncoder) {
 	l.l.SetCallerEncoder(encoder)
+}
+
+// WithOutput create new logger and set the output of logger
+func (l *FiledLogger) WithOutput(out io.Writer) Interface {
+	return l.l.WithOutput(out)
+}
+
+// WithLevel create new logger and set the minimum log level that can be displayed.
+// Logs below this level will not be displayed.
+func (l *FiledLogger) WithLevel(level Level) Interface {
+	return l.l.WithLevel(level)
+}
+
+// WithEncoder create new logger and set encoder for logging
+func (l *FiledLogger) WithEncoder(encoder Encoder) Interface {
+	return l.l.WithEncoder(encoder)
+}
+
+// WithTimeEncoder create new logger and set time encoder for logger
+func (l *FiledLogger) WithTimeEncoder(encoder TimeEncoder) Interface {
+	return l.l.WithTimeEncoder(encoder)
+}
+
+// WithCallerEncoder create new logger and set caller encoder for logger
+func (l *FiledLogger) WithCallerEncoder(encoder CallerEncoder) Interface {
+	return l.l.WithCallerEncoder(encoder)
 }
 
 // Output fake output is just call l.l.Output
@@ -591,106 +631,106 @@ func ParseCaller(f string) (CallerEncoder, error) {
 	return nil, fmt.Errorf("not support caller %s", f)
 }
 
-// WithLevel wrap the level as an option
-func WithLevel(level Level) Option {
+// AddLevel wrap the level as an option
+func AddLevel(level Level) Option {
 	return func(l *config) {
 		l.level = level
 	}
 }
 
-// WithEncoder  wrap the encoder as an option
-func WithEncoder(enc Encoder) Option {
+// AddEncoder  wrap the encoder as an option
+func AddEncoder(enc Encoder) Option {
 	return func(l *config) {
 		l.encoder = enc
 	}
 }
 
-// WithTimeEncoder wrap the time encoder as an option
-func WithTimeEncoder(enc TimeEncoder) Option {
+// AddTimeEncoder wrap the time encoder as an option
+func AddTimeEncoder(enc TimeEncoder) Option {
 	return func(l *config) {
 		l.timeEncoder = enc
 	}
 }
 
-// WithCallerEncoder wrap the caller encoder as an option
-func WithCallerEncoder(enc CallerEncoder) Option {
+// AddCallerEncoder wrap the caller encoder as an option
+func AddCallerEncoder(enc CallerEncoder) Option {
 	return func(l *config) {
 		l.callerEncoder = enc
 	}
 }
 
-// WithBufferSize wrap the caller encoder as an option
-func WithBufferSize(size int) Option {
+// AddBufferSize wrap the caller encoder as an option
+func AddBufferSize(size int) Option {
 	return func(l *config) {
 		l.bufferSize = size
 	}
 }
 
-// WithFlushInterval wrap the caller encoder as an option
-func WithFlushInterval(interval time.Duration) Option {
+// AddFlushInterval wrap the caller encoder as an option
+func AddFlushInterval(interval time.Duration) Option {
 	return func(l *config) {
 		l.flushInterval = interval
 	}
 }
 
-// WithTimeRFC3339 Return an Option This option will
+// AddTimeRFC3339 Return an Option This option will
 // set the logger's time decoder to RFC3339
-func WithTimeRFC3339() Option {
-	return WithTimeEncoder(TimeRFC3339())
+func AddTimeRFC3339() Option {
+	return AddTimeEncoder(TimeRFC3339())
 }
 
-// WithTimeRFC850 Return an Option This option will
+// AddTimeRFC850 Return an Option This option will
 // set the logger's time decoder to RFC850
-func WithTimeRFC850() Option {
-	return WithTimeEncoder(TimeRFC850())
+func AddTimeRFC850() Option {
+	return AddTimeEncoder(TimeRFC850())
 }
 
-// WithTimeRFC1123 Return an Option This option will
+// AddTimeRFC1123 Return an Option This option will
 // set the logger's time decoder to RFC1123
-func WithTimeRFC1123() Option {
-	return WithTimeEncoder(TimeRFC1123())
+func AddTimeRFC1123() Option {
+	return AddTimeEncoder(TimeRFC1123())
 }
 
-// WithTimeRFC822 Return an Option This option will
+// AddTimeRFC822 Return an Option This option will
 // set the logger's time decoder to RFC822
-func WithTimeRFC822() Option {
-	return WithTimeEncoder(TimeRFC822())
+func AddTimeRFC822() Option {
+	return AddTimeEncoder(TimeRFC822())
 }
 
-// WithTimeStamp Return an Option This option will
+// AddTimeStamp Return an Option This option will
 // set the logger's time decoder to Stamp
-func WithTimeStamp() Option {
-	return WithTimeEncoder(TimeStamp())
+func AddTimeStamp() Option {
+	return AddTimeEncoder(TimeStamp())
 }
 
-// WithTimeRFC3339Nano Return an Option This option will
+// AddTimeRFC3339Nano Return an Option This option will
 // set the logger's time decoder to RFC3339Nano
-func WithTimeRFC3339Nano() Option {
-	return WithTimeEncoder(TimeRFC3339Nano())
+func AddTimeRFC3339Nano() Option {
+	return AddTimeEncoder(TimeRFC3339Nano())
 }
 
-// WithJSONEncoder Return an Option This option will
+// AddJSONEncoder Return an Option This option will
 // set the logger's format decoder to json
-func WithJSONEncoder() Option {
-	return WithEncoder(DefaultJSONEncoder)
+func AddJSONEncoder() Option {
+	return AddEncoder(DefaultJSONEncoder)
 }
 
-// WithTextEncoder Return an Option This option will
+// AddTextEncoder Return an Option This option will
 // set the logger's format decoder to text
-func WithTextEncoder() Option {
-	return WithEncoder(DefaultTextEncoder)
+func AddTextEncoder() Option {
+	return AddEncoder(DefaultTextEncoder)
 }
 
-// WithFullCaller Return an Option This option will
+// AddFullCaller Return an Option This option will
 // set the logger's caller decoder to FullCaller
-func WithFullCaller() Option {
-	return WithCallerEncoder(FullCaller())
+func AddFullCaller() Option {
+	return AddCallerEncoder(FullCaller())
 }
 
-// WithShortCaller Return an Option This option will
+// AddShortCaller Return an Option This option will
 // set the logger's caller decoder to ShortCaller
-func WithShortCaller() Option {
-	return WithCallerEncoder(ShortCaller())
+func AddShortCaller() Option {
+	return AddCallerEncoder(ShortCaller())
 }
 
 // FullCaller full caller encoder
@@ -786,21 +826,40 @@ func New(w io.Writer, opts ...func(l *config)) *Logger {
 		encoder:       DefaultTextEncoder,
 		flushInterval: defaultFlushInterval,
 	}
+
 	for _, opt := range opts {
 		opt(c)
 	}
+
+	out := &mutexWriter{writer: w}
+
 	l := &Logger{
-		config:    c,
-		writer:    bufio.NewWriterSize(w, c.bufferSize),
-		level:     c.level,
-		stopFlush: make(chan struct{}),
+		config:      c,
+		writer:      out,
+		stopFlush:   make(chan struct{}),
+		bufioWriter: bufio.NewWriterSize(out, c.bufferSize),
 	}
 
 	// Close the ticker after gc and exit the coroutine
 	runtime.SetFinalizer(l, func(l *Logger) { close(l.stopFlush) })
 
-	go l.startFlushDaemon()
+	go l.launchFlushDaemon()
+
 	return l
+}
+
+func (l *Logger) launchFlushDaemon() {
+	ticker := time.NewTicker(l.config.flushInterval)
+	for {
+		select {
+		case <-ticker.C:
+			l.Flush()
+		case <-l.stopFlush:
+			l.Flush()
+			ticker.Stop()
+			return
+		}
+	}
 }
 
 // WithContext Inject logger into context
@@ -817,7 +876,26 @@ func (l *Logger) WithContext(ctx context.Context, opts ...func(Fields)) context.
 func (l *Logger) SetLevel(level Level) {
 	l.locker.Lock()
 	defer l.locker.Unlock()
-	l.level = level
+	l.config.level = level
+}
+
+// WithLevel create new logger and set the minimum log level that can be displayed.
+// Logs below this level will not be displayed.
+func (l *Logger) WithLevel(level Level) Interface {
+	l.locker.Lock()
+	defer l.locker.Unlock()
+	nl := &Logger{
+		config:      l.config,
+		stopFlush:   make(chan struct{}),
+		writer:      l.writer,
+		bufioWriter: bufio.NewWriterSize(l.writer, l.bufferSize),
+	}
+	// Close the ticker after gc and exit the coroutine
+	runtime.SetFinalizer(nl, func(nl *Logger) { close(nl.stopFlush) })
+
+	go nl.launchFlushDaemon()
+
+	return nl
 }
 
 // SetEncoder set encoder for logging
@@ -827,6 +905,25 @@ func (l *Logger) SetEncoder(encoder Encoder) {
 	l.config.encoder = encoder
 }
 
+// WithEncoder create new logger set encoder for logging
+func (l *Logger) WithEncoder(encoder Encoder) Interface {
+	l.locker.Lock()
+	defer l.locker.Unlock()
+	nl := &Logger{
+		config:      l.config,
+		stopFlush:   make(chan struct{}),
+		writer:      l.writer,
+		bufioWriter: bufio.NewWriterSize(l.writer, l.bufferSize),
+	}
+	l.config.encoder = encoder
+	// Close the ticker after gc and exit the coroutine
+	runtime.SetFinalizer(nl, func(nl *Logger) { close(nl.stopFlush) })
+
+	go nl.launchFlushDaemon()
+
+	return nl
+}
+
 // SetTimeEncoder set time encoder for loger
 func (l *Logger) SetTimeEncoder(encoder TimeEncoder) {
 	l.locker.Lock()
@@ -834,11 +931,50 @@ func (l *Logger) SetTimeEncoder(encoder TimeEncoder) {
 	l.config.timeEncoder = encoder
 }
 
+// WithTimeEncoder create new logger set time encoder for logging
+func (l *Logger) WithTimeEncoder(encoder TimeEncoder) Interface {
+	l.locker.Lock()
+	defer l.locker.Unlock()
+	nl := &Logger{
+		config:      l.config,
+		stopFlush:   make(chan struct{}),
+		writer:      l.writer,
+		bufioWriter: bufio.NewWriterSize(l.writer, l.bufferSize),
+	}
+	l.config.timeEncoder = encoder
+	// Close the ticker after gc and exit the coroutine
+	runtime.SetFinalizer(nl, func(nl *Logger) { close(nl.stopFlush) })
+
+	go nl.launchFlushDaemon()
+
+	return nl
+}
+
 // SetCallerEncoder set caller encoder for logger
 func (l *Logger) SetCallerEncoder(encoder CallerEncoder) {
 	l.locker.Lock()
 	defer l.locker.Unlock()
 	l.config.callerEncoder = encoder
+}
+
+// WithCallerEncoder create new logger set caller encoder for logger
+func (l *Logger) WithCallerEncoder(encoder CallerEncoder) Interface {
+	l.locker.Lock()
+	defer l.locker.Unlock()
+
+	nl := &Logger{
+		config:      l.config,
+		stopFlush:   make(chan struct{}),
+		writer:      l.writer,
+		bufioWriter: bufio.NewWriterSize(l.writer, l.bufferSize),
+	}
+	l.config.callerEncoder = encoder
+	// Close the ticker after gc and exit the coroutine
+	runtime.SetFinalizer(nl, func(nl *Logger) { close(nl.stopFlush) })
+
+	go nl.launchFlushDaemon()
+
+	return nl
 }
 
 // Output call the format function and write the formatted data to io.Writer
@@ -883,7 +1019,7 @@ func (l *Logger) Output(level Level, calldepth int, fileds Fields, s string) err
 	}
 	l.locker.Lock()
 	defer l.locker.Unlock()
-	_, err := l.writer.Write(*buf)
+	_, err := l.bufioWriter.Write(*buf)
 	return err
 }
 
@@ -894,22 +1030,8 @@ func (l *Logger) Fields() Fields { return nil }
 func (l *Logger) Flush() {
 	l.locker.Lock()
 	defer l.locker.Unlock()
-	if err := l.writer.Flush(); err != nil {
+	if err := l.bufioWriter.Flush(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error flushing data to writer %s", err)
-	}
-}
-
-func (l *Logger) startFlushDaemon() {
-	ticker := time.NewTicker(l.config.flushInterval)
-	for {
-		select {
-		case <-ticker.C:
-			l.Flush()
-		case <-l.stopFlush:
-			l.Flush()
-			ticker.Stop()
-			return
-		}
 	}
 }
 
@@ -917,10 +1039,28 @@ func (l *Logger) startFlushDaemon() {
 func (l *Logger) SetOutput(out io.Writer) {
 	l.locker.Lock()
 	defer l.locker.Unlock()
-	if err := l.writer.Flush(); err != nil {
+	if err := l.bufioWriter.Flush(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error flushing data to writer %s", err)
 	}
-	l.writer = bufio.NewWriterSize(out, defaultBufSize)
+	l.bufioWriter = bufio.NewWriterSize(out, defaultBufSize)
+}
+
+// WithOutput create new logger and set the Logger writer to out io.Writer
+func (l *Logger) WithOutput(out io.Writer) Interface {
+	l.locker.Lock()
+	defer l.locker.Unlock()
+
+	nl := &Logger{
+		config:      l.config,
+		stopFlush:   make(chan struct{}),
+		bufioWriter: bufio.NewWriterSize(&mutexWriter{writer: out}, l.config.bufferSize),
+	}
+
+	// Close the ticker after gc and exit the coroutine
+	runtime.SetFinalizer(nl, func(nl *Logger) { close(nl.stopFlush) })
+
+	go nl.launchFlushDaemon()
+	return nl
 }
 
 // WithField key is string value is string,
