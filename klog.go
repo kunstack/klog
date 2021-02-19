@@ -1305,12 +1305,12 @@ func SetOutput(out io.Writer) {
 	std.SetOutput(out)
 }
 
-// SetEncoder .
+// SetEncoder set Encoder to e for std logger
 func SetEncoder(e Encoder) {
 	std.SetEncoder(e)
 }
 
-// SetTimeEncoder set time encoder for logger
+// SetTimeEncoder set time encoder for std logger
 func SetTimeEncoder(e TimeEncoder) {
 	std.SetTimeEncoder(e)
 }
@@ -1318,6 +1318,31 @@ func SetTimeEncoder(e TimeEncoder) {
 // SetCallerEncoder set caller encoder for std logger
 func SetCallerEncoder(e CallerEncoder) {
 	std.SetCallerEncoder(e)
+}
+
+// WithOutput create new logger and set output to out
+func WithOutput(out io.Writer) Interface {
+	return std.WithOutput(out)
+}
+
+// WithLevel create new logger and set level to lvl
+func WithLevel(lvl Level) Interface {
+	return std.WithLevel(lvl)
+}
+
+// WithEncoder create new logger and set Encoder to e
+func WithEncoder(e Encoder) Interface {
+	return std.WithEncoder(e)
+}
+
+// WithTimeEncoder create new logger and set time encoder to e
+func WithTimeEncoder(e TimeEncoder) Interface {
+	return std.WithTimeEncoder(e)
+}
+
+// WithCallerEncoder create new logger and set caller encoder to e
+func WithCallerEncoder(e CallerEncoder) Interface {
+	return std.WithCallerEncoder(e)
 }
 
 // WithFloat64Field key is string value is float64,
