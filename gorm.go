@@ -20,22 +20,11 @@ type GORMLogger struct {
 	l Interface
 }
 
-// LogMode Create a new GORMLogger and set the log level
+// LogMode You cannot change the log level by calling LogMode
+// You can only change the display level of the log through logger.SetLevel()
 func (g *GORMLogger) LogMode(level logger.LogLevel) logger.Interface {
-	lvl := "silent"
-	switch level {
-	case logger.Info:
-		lvl = "info"
-	case logger.Warn:
-		lvl = "warn"
-	case logger.Error:
-		lvl = "error"
-	case logger.Silent:
-		lvl = "silent"
-	}
-	return &GORMLogger{
-		l: g.l.WithField("level", lvl),
-	}
+	// You cannot change the log level by calling LogMode
+	return g
 }
 
 // Info Print information level log
