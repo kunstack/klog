@@ -127,15 +127,27 @@ type Interface interface {
 	Panicf(format string, v ...interface{})
 	Panicln(v ...interface{})
 }
+
+// mutexWriter Writers protected by mutex locks
+// Inefficient and expensive, but can ensure cross-coroutine
+// security when multiple loggers write
 type mutexWriter struct {
 	writer io.Writer
 	locker sync.Mutex
 }
 
+// Write just implement interface io.Writer with lock
 func (w *mutexWriter) Write(p []byte) (n int, err error) {
 	w.locker.Lock()
 	defer w.locker.Unlock()
 	return w.writer.Write(p)
+}
+
+// setOutput change mutexWriter output
+func (w *mutexWriter) setOutput(out io.Writer) {
+	w.locker.Lock()
+	defer w.locker.Unlock()
+	w.writer = out
 }
 
 // TimeRFC3339 RFC3339 time encoder
@@ -209,6 +221,7 @@ func (f Fields) Get(k string) string {
 // Set set value to Fields
 func (f Fields) Set(k, v string) { f[k] = v }
 
+// config Parameter structure required for log initialization
 type config struct {
 	level         Level
 	bufferSize    int
@@ -219,8 +232,7 @@ type config struct {
 }
 
 // Logger High-performance log structure
-// More than twice as fast as logrus
-// We are willi3ng to accept any method that can increase the speed
+// We are willing to accept any method that can increase the speed
 // If consuming memory can increase the speed, then just do it
 type Logger struct {
 	*config
@@ -1042,7 +1054,7 @@ func (l *Logger) SetOutput(out io.Writer) {
 	if err := l.bufioWriter.Flush(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error flushing data to writer %s", err)
 	}
-	l.bufioWriter = bufio.NewWriterSize(out, defaultBufSize)
+	l.writer.setOutput(out)
 }
 
 // WithOutput create new logger and set the Logger writer to out io.Writer
@@ -1050,10 +1062,13 @@ func (l *Logger) WithOutput(out io.Writer) Interface {
 	l.locker.Lock()
 	defer l.locker.Unlock()
 
+	mw := &mutexWriter{writer: out}
+
 	nl := &Logger{
 		config:      l.config,
 		stopFlush:   make(chan struct{}),
-		bufioWriter: bufio.NewWriterSize(&mutexWriter{writer: out}, l.config.bufferSize),
+		writer:      mw,
+		bufioWriter: bufio.NewWriterSize(mw, l.config.bufferSize),
 	}
 
 	// Close the ticker after gc and exit the coroutine
