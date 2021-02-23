@@ -31,7 +31,7 @@ Example:
 
     func main() {
         // Create a new logger
-        logger := log.New(os.Stderr, log.WithLevel(log.TraceLevel))
+        logger := log.New(os.Stderr, log.AddLevel(log.TraceLevel))
 
 
         // Print a debug log
