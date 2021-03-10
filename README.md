@@ -1,9 +1,8 @@
 # klog
-klog is a structured logger for Go (golang), completely API compatible with the standard library logger.
+klog是Go（golang）的日志包，与标准库log包完全兼容。
+可以轻松，快速，轻松地将其引入到项目中。 受到Logrus[Logrus](https://github.com/sirupsen/logrus)启发
 
-It can be introduced into the project easily, quickly and lightly. Inspired by [Logrus](https://github.com/sirupsen/logrus)
-
-# Fully compatible with the Golang log library, it is easy to replace the official log package
+# 与Golang日志库完全兼容，可以轻松替换官方日志包
 
 Example:
 
@@ -66,9 +65,9 @@ Example:
     }
 
 
-# Modify the default log output
+# 修改默认日志输出
 
-The log is output to `os.Stderr` by default. You can use SetOutput to modify the default output object.
+默认情况下，日志输出到os.Stderr。 您可以使用SetOutput修改默认输出对象。
 
     package main
 
@@ -96,8 +95,8 @@ The log is output to `os.Stderr` by default. You can use SetOutput to modify the
 
 # example for echo
 
-In some systems, the gateway (such as [ingress-nginx](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#generate-request-id)) will send a The http header field of X-Request-ID, we hope that each line of the log printed by processing the request can print the x-request-id field together.
-The following example is the best practice for using klog with the gin framework.We choose to read the X-Request-ID field in the middleware and ensure that the request-id field can be obtained normally in subsequent functions.
+在某些系统中，网关（例如[ingress-nginx]（https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#generate-request-id））将发送 X-Request-ID的http标头字段，我们希望通过处理请求打印的日志的每一行都可以一起打印x-request-id字段。
+下面的示例是在gin框架上使用klog的最佳实践。我们选择读取中间件中的X-Request-ID字段，并确保可以在后续函数中正常获得request-id字段。
 
     package main
 
@@ -148,11 +147,11 @@ The following example is the best practice for using klog with the gin framework
 
 
 
-Some gateways will help us generate X-Request-ID, if you need to test manually, you can try the following curl command
+一些网关将帮助我们生成X-Request-ID，如果您需要手动测试，则可以尝试以下curl命令
 
     curl -H "X-Request-ID: 0F0623A4-0980-47FB-8257-664FA5761E6C" http://localhost:8080/ping
 
-operation result,The corresponding request-id printed in each log line:
+操作结果，在每个日志行中打印相应的request-id：
 
 ![echo](./examples/echo/img/echo.png)
 
@@ -164,8 +163,9 @@ The result of running the curl command
 
 # example for gin
 
-In some systems, the gateway (such as [ingress-nginx](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#generate-request-id)) will send a The http header field of X-Request-ID, we hope that each line of the log printed by processing the request can print the x-request-id field together.
-The following example is the best practice for using klog with the gin framework.We choose to read the X-Request-ID field in the middleware and ensure that the request-id field can be obtained normally in subsequent functions.
+在某些系统中，网关（例如[ingress-nginx]（https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#generate-request-id））将发送 X-Request-ID的http标头字段，我们希望通过处理请求打印的日志的每一行都可以一起打印x-request-id字段。
+下面的示例是在gin框架上使用klog的最佳实践。我们选择读取中间件中的X-Request-ID字段，并确保可以在后续函数中正常获得request-id字段。
+
 
     package main
 
@@ -210,12 +210,12 @@ The following example is the best practice for using klog with the gin framework
 
 
 
-Some gateways will help us generate X-Request-ID, if you need to test manually, you can try the following curl command
+一些网关将帮助我们生成X-Request-ID，如果您需要手动测试，则可以尝试以下curl命令
 
     curl -H "X-Request-ID: 0F0623A4-0980-47FB-8257-664FA5761E6C" http://localhost:8080/ping
 
 
-operation result,The corresponding request-id printed in each log line:
+操作结果，在每个日志行中打印相应的request-id：
 
 ![echo](./examples/gin/img/gin.png)
 
@@ -321,5 +321,4 @@ Log rotation example:
 
         wg.Wait()
     }
-
 
