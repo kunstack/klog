@@ -22,6 +22,7 @@ var (
 	bufPool = &sync.Pool{
 		New: func() interface{} {
 			s := make([]byte, 1<<10)
+			s = s[:0]
 			return &s
 		},
 	}
