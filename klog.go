@@ -85,16 +85,6 @@ type Interface interface {
 	SetEncoder(Encoder)
 	SetTimeEncoder(TimeEncoder)
 	SetCallerEncoder(CallerEncoder)
-	// Inefficient method Not recommended
-	WithOutput(out io.Writer) Interface
-	//Inefficient method Not recommended
-	WithLevel(level Level) Interface
-	// Inefficient method Not recommended
-	WithEncoder(Encoder) Interface
-	// Inefficient method Not recommended
-	WithTimeEncoder(TimeEncoder) Interface
-	// Inefficient method Not recommended
-	WithCallerEncoder(CallerEncoder) Interface
 	Output(level Level, calldepth int, fileds Fields, s string) error
 	WithContext(ctx context.Context, opts ...func(Fields)) context.Context
 	Fields() Fields
@@ -126,28 +116,6 @@ type Interface interface {
 	Panic(v ...interface{})
 	Panicf(format string, v ...interface{})
 	Panicln(v ...interface{})
-}
-
-// mutexWriter Writers protected by mutex locks
-// Inefficient and expensive, but can ensure cross-coroutine
-// security when multiple loggers write
-type mutexWriter struct {
-	writer io.Writer
-	locker sync.Mutex
-}
-
-// Write just implement interface io.Writer with lock
-func (w *mutexWriter) Write(p []byte) (n int, err error) {
-	w.locker.Lock()
-	defer w.locker.Unlock()
-	return w.writer.Write(p)
-}
-
-// setOutput change mutexWriter output
-func (w *mutexWriter) setOutput(out io.Writer) {
-	w.locker.Lock()
-	defer w.locker.Unlock()
-	w.writer = out
 }
 
 // TimeRFC3339 RFC3339 time encoder
@@ -238,7 +206,6 @@ type Logger struct {
 	*config
 	locker      sync.Mutex
 	stopFlush   chan struct{}
-	writer      *mutexWriter
 	bufioWriter *bufio.Writer
 }
 
@@ -340,32 +307,6 @@ func (l *FiledLogger) SetTimeEncoder(encoder TimeEncoder) {
 // SetCallerEncoder set caller encoder for logger
 func (l *FiledLogger) SetCallerEncoder(encoder CallerEncoder) {
 	l.l.SetCallerEncoder(encoder)
-}
-
-// WithOutput create new logger and set the output of logger
-func (l *FiledLogger) WithOutput(out io.Writer) Interface {
-	return l.l.WithOutput(out)
-}
-
-// WithLevel create new logger and set the minimum log level that can be displayed.
-// Logs below this level will not be displayed.
-func (l *FiledLogger) WithLevel(level Level) Interface {
-	return l.l.WithLevel(level)
-}
-
-// WithEncoder create new logger and set encoder for logging
-func (l *FiledLogger) WithEncoder(encoder Encoder) Interface {
-	return l.l.WithEncoder(encoder)
-}
-
-// WithTimeEncoder create new logger and set time encoder for logger
-func (l *FiledLogger) WithTimeEncoder(encoder TimeEncoder) Interface {
-	return l.l.WithTimeEncoder(encoder)
-}
-
-// WithCallerEncoder create new logger and set caller encoder for logger
-func (l *FiledLogger) WithCallerEncoder(encoder CallerEncoder) Interface {
-	return l.l.WithCallerEncoder(encoder)
 }
 
 // Output fake output is just call l.l.Output
@@ -831,25 +772,22 @@ func FromContext(ctx context.Context) Interface {
 }
 
 // New create Interface and set output is w
-func New(w io.Writer, opts ...func(l *config)) *Logger {
+func New(w io.Writer, opts ...Option) *Logger {
 	c := &config{
 		level:         InfoLevel,
 		bufferSize:    defaultBufSize,
 		encoder:       DefaultTextEncoder,
 		flushInterval: defaultFlushInterval,
 	}
-
+	// apply option
 	for _, opt := range opts {
 		opt(c)
 	}
 
-	out := &mutexWriter{writer: w}
-
 	l := &Logger{
 		config:      c,
-		writer:      out,
 		stopFlush:   make(chan struct{}),
-		bufioWriter: bufio.NewWriterSize(out, c.bufferSize),
+		bufioWriter: bufio.NewWriterSize(w, c.bufferSize),
 	}
 
 	// Close the ticker after gc and exit the coroutine
@@ -891,49 +829,11 @@ func (l *Logger) SetLevel(level Level) {
 	l.config.level = level
 }
 
-// WithLevel create new logger and set the minimum log level that can be displayed.
-// Logs below this level will not be displayed.
-func (l *Logger) WithLevel(level Level) Interface {
-	l.locker.Lock()
-	defer l.locker.Unlock()
-	nl := &Logger{
-		config:      l.config,
-		stopFlush:   make(chan struct{}),
-		writer:      l.writer,
-		bufioWriter: bufio.NewWriterSize(l.writer, l.bufferSize),
-	}
-	// Close the ticker after gc and exit the coroutine
-	runtime.SetFinalizer(nl, func(nl *Logger) { close(nl.stopFlush) })
-
-	go nl.launchFlushDaemon()
-
-	return nl
-}
-
 // SetEncoder set encoder for logging
 func (l *Logger) SetEncoder(encoder Encoder) {
 	l.locker.Lock()
 	defer l.locker.Unlock()
 	l.config.encoder = encoder
-}
-
-// WithEncoder create new logger set encoder for logging
-func (l *Logger) WithEncoder(encoder Encoder) Interface {
-	l.locker.Lock()
-	defer l.locker.Unlock()
-	nl := &Logger{
-		config:      l.config,
-		stopFlush:   make(chan struct{}),
-		writer:      l.writer,
-		bufioWriter: bufio.NewWriterSize(l.writer, l.bufferSize),
-	}
-	l.config.encoder = encoder
-	// Close the ticker after gc and exit the coroutine
-	runtime.SetFinalizer(nl, func(nl *Logger) { close(nl.stopFlush) })
-
-	go nl.launchFlushDaemon()
-
-	return nl
 }
 
 // SetTimeEncoder set time encoder for loger
@@ -943,50 +843,11 @@ func (l *Logger) SetTimeEncoder(encoder TimeEncoder) {
 	l.config.timeEncoder = encoder
 }
 
-// WithTimeEncoder create new logger set time encoder for logging
-func (l *Logger) WithTimeEncoder(encoder TimeEncoder) Interface {
-	l.locker.Lock()
-	defer l.locker.Unlock()
-	nl := &Logger{
-		config:      l.config,
-		stopFlush:   make(chan struct{}),
-		writer:      l.writer,
-		bufioWriter: bufio.NewWriterSize(l.writer, l.bufferSize),
-	}
-	l.config.timeEncoder = encoder
-	// Close the ticker after gc and exit the coroutine
-	runtime.SetFinalizer(nl, func(nl *Logger) { close(nl.stopFlush) })
-
-	go nl.launchFlushDaemon()
-
-	return nl
-}
-
 // SetCallerEncoder set caller encoder for logger
 func (l *Logger) SetCallerEncoder(encoder CallerEncoder) {
 	l.locker.Lock()
 	defer l.locker.Unlock()
 	l.config.callerEncoder = encoder
-}
-
-// WithCallerEncoder create new logger set caller encoder for logger
-func (l *Logger) WithCallerEncoder(encoder CallerEncoder) Interface {
-	l.locker.Lock()
-	defer l.locker.Unlock()
-
-	nl := &Logger{
-		config:      l.config,
-		stopFlush:   make(chan struct{}),
-		writer:      l.writer,
-		bufioWriter: bufio.NewWriterSize(l.writer, l.bufferSize),
-	}
-	l.config.callerEncoder = encoder
-	// Close the ticker after gc and exit the coroutine
-	runtime.SetFinalizer(nl, func(nl *Logger) { close(nl.stopFlush) })
-
-	go nl.launchFlushDaemon()
-
-	return nl
 }
 
 // Output call the format function and write the formatted data to io.Writer
@@ -1054,28 +915,7 @@ func (l *Logger) SetOutput(out io.Writer) {
 	if err := l.bufioWriter.Flush(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error flushing data to writer %s", err)
 	}
-	l.writer.setOutput(out)
-}
-
-// WithOutput create new logger and set the Logger writer to out io.Writer
-func (l *Logger) WithOutput(out io.Writer) Interface {
-	l.locker.Lock()
-	defer l.locker.Unlock()
-
-	mw := &mutexWriter{writer: out}
-
-	nl := &Logger{
-		config:      l.config,
-		stopFlush:   make(chan struct{}),
-		writer:      mw,
-		bufioWriter: bufio.NewWriterSize(mw, l.config.bufferSize),
-	}
-
-	// Close the ticker after gc and exit the coroutine
-	runtime.SetFinalizer(nl, func(nl *Logger) { close(nl.stopFlush) })
-
-	go nl.launchFlushDaemon()
-	return nl
+	l.bufioWriter = bufio.NewWriterSize(out, l.bufferSize)
 }
 
 // WithField key is string value is string,
@@ -1333,31 +1173,6 @@ func SetTimeEncoder(e TimeEncoder) {
 // SetCallerEncoder set caller encoder for std logger
 func SetCallerEncoder(e CallerEncoder) {
 	std.SetCallerEncoder(e)
-}
-
-// WithOutput create new logger and set output to out
-func WithOutput(out io.Writer) Interface {
-	return std.WithOutput(out)
-}
-
-// WithLevel create new logger and set level to lvl
-func WithLevel(lvl Level) Interface {
-	return std.WithLevel(lvl)
-}
-
-// WithEncoder create new logger and set Encoder to e
-func WithEncoder(e Encoder) Interface {
-	return std.WithEncoder(e)
-}
-
-// WithTimeEncoder create new logger and set time encoder to e
-func WithTimeEncoder(e TimeEncoder) Interface {
-	return std.WithTimeEncoder(e)
-}
-
-// WithCallerEncoder create new logger and set caller encoder to e
-func WithCallerEncoder(e CallerEncoder) Interface {
-	return std.WithCallerEncoder(e)
 }
 
 // WithFloat64Field key is string value is float64,

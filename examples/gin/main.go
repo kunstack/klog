@@ -35,5 +35,7 @@ func main() {
 		ctx.String(http.StatusOK, fmt.Sprintf("reuest-id is %s", l.Fields().Get("request-id")))
 	})
 
-	router.Run(":8080")
+	if err := router.Run(":8080"); err != nil {
+		log.Fatalln(err)
+	}
 }

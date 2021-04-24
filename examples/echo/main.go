@@ -40,5 +40,8 @@ func main() {
 		someService(ctx.Request().Context())
 		return ctx.String(http.StatusOK, fmt.Sprintf("reuest-id is %s", l.Fields().Get("request-id")))
 	})
-	app.Start(":8080")
+
+	if err := app.Start(":8080"); err != nil {
+		log.Fatalln(err)
+	}
 }
